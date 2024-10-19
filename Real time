@@ -1,0 +1,83 @@
+Real Time Data Processing Systems for wheather Monitoring with Rollups and Aggregates 
+
+import requests
+import time
+import json
+import pandas as pd
+
+# Replace with your OpenWeatherMap API key
+api_key = "YOUR_API_KEY"
+
+# List of cities
+cities = ["Delhi", "Mumbai", "Chennai", "Bangalore", "Kolkata", "Hyderabad"]
+
+# Interval for fetching weather data (in seconds)
+interval = 300
+
+def get_weather_data(city):
+    url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Error fetching data for {city}: {response.status_code}")
+        return None
+
+def process_data(data):
+    temperature = data["main"]["temp"]
+    feels_like = data["main"]["feels_like"]
+    weather_condition = data["weather"][0]["main"]
+    dt = data["dt"]
+    return temperature, feels_like, weather_condition, dt
+
+def calculate_daily_summary(data):
+    temperatures = [row["temperature"] for row in data]
+    feels_like = [row["feels_like"] for row in data]
+    weather_conditions = [row["weather_condition"] for row in data]
+
+    average_temp = sum(temperatures) / len(temperatures)
+    max_temp = max(temperatures)
+    min_temp = min(temperatures)
+    dominant_weather = max(set(weather_conditions), key=weather_conditions.count)
+
+    return average_temp, max_temp, min_temp, dominant_weather
+
+def check_thresholds(data, temp_threshold, weather_threshold):
+    for row in data:
+        if row["temperature"] > temp_threshold or row["weather_condition"] == weather_threshold:
+            return True
+    return False
+
+def main():
+    daily_data = {}
+    while True:
+        for city in cities:
+            weather_data = get_weather_data(city)
+            if weather_data:
+                temperature, feels_like, weather_condition, dt = process_data(weather_data)
+                date = time.strftime("%Y-%m-%d", time.localtime(dt))
+                if date not in daily_data:
+                    daily_data[date] = []
+                daily_data[date].append({"temperature": temperature, "feels_like": feels_like, "weather_condition": weather_condition})
+
+        # Calculate daily summaries
+        for date, data in daily_data.items():
+            average_temp, max_temp, min_temp, dominant_weather = calculate_daily_summary(data)
+            print(f"Date: {date}")
+            print(f"Average Temperature: {average_temp}")
+            print(f"Maximum Temperature: {max_temp}")
+            print(f"Minimum Temperature: {min_temp}")
+            print(f"Dominant Weather: {dominant_weather}")
+            print()
+
+        # Check thresholds (replace with your desired thresholds)
+        temp_threshold = 35
+        weather_threshold = "Rain"
+        for date, data in daily_data.items():
+            if check_thresholds(data, temp_threshold, weather_threshold):
+                print(f"Alert! Temperature exceeded {temp_threshold} or weather is {weather_threshold} on {date}")
+
+        time.sleep(interval)
+
+if _name_ == "_main_":
+    main()
